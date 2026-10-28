@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { width:100%; height:100%; background:#1a1a1a; }
+  #map { width:100%; height:calc(100% - 56px); background:#1a1a1a; }
+  .leaflet-container { background:#1a1a1a !important; }
+  .leaflet-control-zoom { display:none; }
+  .leaflet-control-attribution { display:none; }
+  .pin-label {
+    background: rgba(0,0,0,0.85);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 6px;
+    padding: 2px 5px;
+    font-size: 11px;
+    font-weight: bold;
+    color: white;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+  .state-label {
+    background: transparent;
+    border: none;
+    color: rgba(0,0,0,0.35);
+    font-size: 8px;
+    font-weight: 900;
+    text-align: center;
+    white-space: nowrap;
+    pointer-events: none;
+    text-shadow: 0 0 3px rgba(255,215,0,0.2);
+    letter-spacing: 0.5px;
+  }
+  #territory-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 56px;
+    background: rgba(10,10,10,0.97);
+    border-top: 1px solid rgba(255,214,10,0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    z-index: 1000;
+  }
+  .territory-btn {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255,214,10,0.06);
+    border: 1px solid rgba(255,214,10,0.25);
+    border-radius: 10px;
+    padding: 6px 14px;
+    cursor: pointer;
+    min-width: 90px;
+  }
+  .territory-btn:active {
+    background: rgba(255,214,10,0.22);
+    border-color: #FFD60A;
+  }
+  .territory-flag {
+    width: 32px;
+    height: 20px;
+    border-radius: 2px;
+    border: 0.5px solid rgba(255,255,255,0.2);
+  }
+  .territory-flag-emoji {
+    font-size: 20px;
+    line-height: 1;
+  }
+  .territory-name {
+    font-size: 9px;
+    font-weight: 900;
+    color: #FFD60A;
+    letter-spacing: 1px;
+  }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="territory-bar">
+  <button class="territory-btn" onclick="selectTerritory('Hawaii')">
+    <svg class="territory-flag" viewBox="0 0 120 63" xmlns="http://www.w3.org/2000/svg">
+      <rect width="120" height="63" fill="#fff"/>
+      <rect y="0" width="120" height="7" fill="#E4002B"/>
+      <rect y="7" width="120" height="7" fill="#fff"/>
+      <rect y="14" width="120" height="7" fill="#E4002B"/>
+      <rect y="21" width="120" height="7" fill="#fff"/>
+      <rect y="28" width="120" height="7" fill="#E4002B"/>
+      <rect y="35" width="120" height="7" fill="#fff"/>
+      <rect y="42" width="120" height="7" fill="#E4002B"/>
+      <rect y="49" width="120" height="7" fill="#fff"/>
+      <rect y="56" width="120" height="7" fill="#E4002B"/>
+      <rect width="48" height="35" fill="#012169"/>
+      <line x1="0" y1="0" x2="48" y2="35" stroke="#fff" stroke-width="5"/>
+      <line x1="48" y1="0" x2="0" y2="35" stroke="#fff" stroke-width="5"/>
+      <line x1="0" y1="0" x2="48" y2="35" stroke="#E4002B" stroke-width="3"/>
+      <line x1="48" y1="0" x2="0" y2="35" stroke="#E4002B" stroke-width="3"/>
+      <rect x="21" y="0" width="6" height="35" fill="#fff"/>
+      <rect x="0" y="14.5" width="48" height="6" fill="#fff"/>
+      <rect x="22.5" y="0" width="3" height="35" fill="#E4002B"/>
+      <rect x="0" y="16" width="48" height="3" fill="#E4002B"/>
+    </svg>
+    <span class="territory-name">HAWAII</span>
+  </button>
+  <button class="territory-btn" onclick="selectTerritory('Alaska')">
+    <img class="territory-flag"
+      src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOEAAACWCAMAAAAfSh8xAAAAolBMVEUPIEv/thITIkkfKkcvNEP8tBL4shMWJElKRT31sBQ4OUGFai5DQD52YTKeeSgrMkQzN0KjfSflphfxrRUcKEgZJkgnL0XXnRvqqBdWTDpfUjhkVTeLbS3PmB3doRoiLEZQSTuSciyOcCyZdimsgiWyhiS3iSPDkSDGkh/Llh3hoxntqxZ+ZjDAjyDJlB48PT9vXDRsWjSogCe8jCJdUDdqWDV/xPxdAAAB9klEQVR42u3bSW7bABQDUFKyRkuyLXme7Xh25rT3v1qRoMg2m7aoGb4Fz8BP4MPMzMzMzMzMzP6Sfh/iyhLiTkdoS+I4gbQJOYGosPVuT+5b70LISV5jfsoOAwiaNPytmUDT6o0fjkOoCjKSzBLISvkhhayK3O/ICrKa+BmYxhlUrS9dAOgs1xCVJviQpL6xzMzMzMzMzMxEJVBXQd21gLB+GE5YhWEIVetlRJLNFrKSHslxDmEFyTsoe81+jsZQdhgi6BUQFnzGN/QCdcsc2obcQli6GF0YL0YbyHqqSUZtCOvIV4EyeowvUPZYojPKIawLIOh6AjGzfyiHuHQHcb0xhA3a988N2+U8h6r0SvUanizIOIeymhFbEJY3PzrLOwibdoCgdCkwM/uDnqDuoQVtQdyGsLSa9zi+38wDqGpHJLnsQlcekacAwlLGHEHZ4RxOr0MIewHQXbsVmNn/YABxgwriZmMIC1Zh+MAiDPtQNW9IMhrlkNUdk9wGEHYg2cJtWs3wtSA7zrINbtP9G7423QDDHm7TOQugq7+vL2Rdn7pQFVQkeQohbEFmUDaI63NUQFj5MMC8B2Gdz/imCogbPkJcGfUhrH3XrrnbVilUrc6U/9HokSygbMEsmkJYeJ0luyOEFS0AMy/FZmZmZmZmZmYm5heSzRfZ+dK68wAAAABJRU5ErkJggg=="
+      alt="Alaska"/>
+    <span class="territory-name">ALASKA</span>
+  </button>
+  <button class="territory-btn" onclick="selectTerritory('Puerto Rico')">
+    <span class="territory-flag-emoji">🇵🇷</span>
+    <span class="territory-name">PUERTO RICO</span>
+  </button>
+</div>
+<script>
+  var tileURL = 'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png';
+  var tileOpts = { maxZoom: 19 };
+  var stateStyle = {
+    fillColor: '#FFD60A',
+    fillOpacity: 0.65,
+    color: '#000',
+    weight: 1.2,
+    opacity: 0.9
+  };
+  var selectedStyle = {
+    fillColor: '#FF9500',
+    fillOpacity: 0.88,
+    color: '#000',
+    weight: 1.5,
+    opacity: 1
+  };
+
+  var map = L.map('map', {
+    zoomControl: false,
+    attributionControl: false,
+    dragging: true,
+    touchZoom: true,
+    doubleClickZoom: false,
+    scrollWheelZoom: false,
+    minZoom: 3,
+    maxZoom: 10
+  }).setView([38.0, -96.0], 3);
+
+  L.tileLayer(tileURL, tileOpts).addTo(map);
+
+  var markers = [];
+  var stateLayer = null;
+  var selectedLayer = null;
+  var stateLabels = [];
+
+  var stateData = [
+    {name:'AL',lat:32.8,lng:-86.8},{name:'AZ',lat:34.3,lng:-111.1},
+    {name:'AR',lat:34.8,lng:-92.2},{name:'CA',lat:36.8,lng:-119.4},
+    {name:'CO',lat:39.0,lng:-105.5},{name:'CT',lat:41.6,lng:-72.7},
+    {name:'DE',lat:39.0,lng:-75.5},{name:'FL',lat:27.8,lng:-81.7},
+    {name:'GA',lat:32.2,lng:-83.4},{name:'ID',lat:44.4,lng:-114.6},
+    {name:'IL',lat:40.0,lng:-89.2},{name:'IN',lat:40.3,lng:-86.1},
+    {name:'IA',lat:42.0,lng:-93.2},{name:'KS',lat:38.5,lng:-98.4},
+    {name:'KY',lat:37.7,lng:-85.3},{name:'LA',lat:31.2,lng:-91.8},
+    {name:'ME',lat:45.4,lng:-69.0},{name:'MD',lat:39.0,lng:-76.8},
+    {name:'MA',lat:42.3,lng:-71.8},{name:'MI',lat:44.3,lng:-85.4},
+    {name:'MN',lat:46.4,lng:-93.1},{name:'MS',lat:32.7,lng:-89.7},
+    {name:'MO',lat:38.5,lng:-92.5},{name:'MT',lat:47.0,lng:-110.0},
+    {name:'NE',lat:41.5,lng:-99.9},{name:'NV',lat:38.5,lng:-117.1},
+    {name:'NH',lat:44.0,lng:-71.6},{name:'NJ',lat:40.1,lng:-74.5},
+    {name:'NM',lat:34.5,lng:-106.1},{name:'NY',lat:42.9,lng:-75.5},
+    {name:'NC',lat:35.6,lng:-79.4},{name:'ND',lat:47.5,lng:-100.4},
+    {name:'OH',lat:40.4,lng:-82.8},{name:'OK',lat:35.6,lng:-97.5},
+    {name:'OR',lat:44.1,lng:-120.5},{name:'PA',lat:40.9,lng:-77.8},
+    {name:'RI',lat:41.7,lng:-71.5},{name:'SC',lat:33.9,lng:-80.9},
+    {name:'SD',lat:44.4,lng:-100.2},{name:'TN',lat:35.9,lng:-86.4},
+    {name:'TX',lat:31.5,lng:-99.3},{name:'UT',lat:39.3,lng:-111.1},
+    {name:'VT',lat:44.1,lng:-72.7},{name:'VA',lat:37.8,lng:-78.2},
+    {name:'WA',lat:47.4,lng:-120.5},{name:'WV',lat:38.6,lng:-80.6},
+    {name:'WI',lat:44.3,lng:-89.6},{name:'WY',lat:43.0,lng:-107.6},
+    {name:'DC',lat:38.9,lng:-77.0}
+  ];
+
+  function addStateLabels() {
+    stateLabels.forEach(l => map.removeLayer(l));
+    stateLabels = [];
+    stateData.forEach(function(s) {
+      var icon = L.divIcon({
+        html: '<div class="state-label">' + s.name + '</div>',
+        className: '',
+        iconSize: [28, 14],
+        iconAnchor: [14, 7]
+      });
+      var lbl = L.marker([s.lat, s.lng], {
+        icon: icon,
+        interactive: false,
+        zIndexOffset: -1000
+      }).addTo(map);
+      stateLabels.push(lbl);
+    });
+  }
+
+  function onStateTap(name) {
+    if (window.Android) Android.stateTapped(name);
+  }
+
+  function onEachState(feature, layer) {
+    layer.on('click', function() {
+      var name = feature.properties.name;
+      if (selectedLayer) selectedLayer.setStyle(stateStyle);
+      layer.setStyle(selectedStyle);
+      selectedLayer = layer;
+      map.fitBounds(layer.getBounds(), { padding:[30,30], maxZoom:7 });
+      onStateTap(name);
+    });
+    layer.on('mouseover', function() {
+      if (layer !== selectedLayer) layer.setStyle({ fillOpacity:0.85 });
+    });
+    layer.on('mouseout', function() {
+      if (layer !== selectedLayer) layer.setStyle({ fillOpacity:0.65 });
+    });
+  }
+
+  fetch('https://raw.githubusercontent.com/PublicaMundi/MappingAPI/master/data/geojson/us-states.json')
+    .then(r => r.json())
+    .then(data => {
+      stateLayer = L.geoJSON(data, {
+        style: stateStyle,
+        filter: f => f.properties.name !== 'Hawaii' && f.properties.name !== 'Alaska',
+        onEachFeature: onEachState
+      }).addTo(map);
+      addStateLabels();
+      addPins(window.__initialPins || []); if (window.Android && Android.mapReady) Android.mapReady();
+    })
+    .catch(err => console.log('GeoJSON error:', err));
+
+  function selectTerritory(name) {
+    onStateTap(name);
+    var coords = {
+      'Hawaii':      { lat:20.5,  lng:-157.0, zoom:6 },
+      'Alaska':      { lat:64.0,  lng:-153.0, zoom:4 },
+      'Puerto Rico': { lat:18.2,  lng:-66.5,  zoom:8 }
+    };
+    if (coords[name]) {
+      map.setView([coords[name].lat, coords[name].lng], coords[name].zoom);
+    }
+  }
+
+  function addPins(pins) {
+    markers.forEach(m => map.removeLayer(m));
+    markers = [];
+    pins.forEach(function(pin) {
+      var dot = '<div style="width:14px;height:14px;border-radius:50%;background:' + pin.color + ';box-shadow:0 0 6px ' + pin.color + ';border:2px solid rgba(0,0,0,0.4);cursor:pointer;"></div>';
+      var icon = L.divIcon({
+        html: dot,
+        className: '',
+        iconSize: [14, 14],
+        iconAnchor: [7, 7]
+      });
+      var marker = L.marker([pin.lat, pin.lng], { icon: icon });
+      marker.on('click', function() {
+        if (window.Android) Android.eventTapped(pin.id);
+      });
+      marker.bindTooltip(pin.title, {
+        permanent: false,
+        direction: 'top',
+        className: 'pin-label',
+        offset: [0, -8]
+      });
+      marker.addTo(map);
+      markers.push(marker);
+    });
+  }
+
+  function updatePins(pins) { addPins(pins); }
+
+  function resetToUSA() {
+    map.setView([38.0, -96.0], 3);
+    if (selectedLayer) { selectedLayer.setStyle(stateStyle); selectedLayer = null; }
+  }
+</script>
+</body>
+</html>
