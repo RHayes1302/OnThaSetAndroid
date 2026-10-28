@@ -1,11 +1,5 @@
 package com.hayesenterprisesllc.onthaset.ui.national
 
-import android.annotation.SuppressLint
-import android.os.Handler
-import android.os.Looper
-import android.webkit.JavascriptInterface
-import android.webkit.WebView
-import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -141,15 +135,6 @@ object NationalStyle {
     }.toString()
 }
 
-/** Bridge for the Leaflet page (replaces WKScriptMessageHandler). */
-private class MapBridge(val onState: (String) -> Unit, val onEvent: (String) -> Unit) {
-    private val main = Handler(Looper.getMainLooper())
-    @JavascriptInterface fun stateTapped(name: String) { main.post { onState(name) } }
-    @JavascriptInterface fun eventTapped(id: String) { main.post { onEvent(id) } }
-    @JavascriptInterface fun mapReady() {}
-}
-
-@SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun NationalRunCalendarScreen(onBack: () -> Unit, onEventClick: (SupabaseEvent) -> Unit) {
     val context = LocalContext.current
@@ -161,7 +146,6 @@ fun NationalRunCalendarScreen(onBack: () -> Unit, onEventClick: (SupabaseEvent) 
     var month by rememberSaveable { mutableIntStateOf(today.monthValue) }
     var year by rememberSaveable { mutableIntStateOf(today.year) }
     var selectedState by rememberSaveable { mutableStateOf<String?>(null) }
-    var webView by remember { mutableStateOf<WebView?>(null) }
 
     LaunchedEffect(Unit) { SupabaseManager.fetchAllEvents() }
 
@@ -180,14 +164,9 @@ fun NationalRunCalendarScreen(onBack: () -> Unit, onEventClick: (SupabaseEvent) 
         }
     } ?: emptyList()
 
-    val pinsJson = NationalStyle.pinsJson(byMonth)
-    LaunchedEffect(pinsJson, webView) { webView?.evaluateJavascript("if (typeof updatePins==='function') updatePins($pinsJson);", null) }
-
-    fun resetMap() { webView?.evaluateJavascript("resetToUSA();", null) }
+    fun resetMap() { /* the native map zooms back out when selectedState is cleared */ }
     fun back() { if (selectedState != null) { selectedState = null; resetMap() } else onBack() }
     BackHandler(enabled = selectedState != null) { back() }
-
-    val currentByMonth by rememberUpdatedState(byMonth)
 
     BlackScreen {
         Column(Modifier.fillMaxSize()) {
@@ -248,26 +227,12 @@ fun NationalRunCalendarScreen(onBack: () -> Unit, onEventClick: (SupabaseEvent) 
                     Text("Loading national events...", color = AppColors.Gray, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
                 }
                 isMap -> Column(Modifier.fillMaxSize()) {
-                    AndroidView(
-                        modifier = Modifier.fillMaxWidth().height(if (selectedState != null) 280.dp else 380.dp),
-                        factory = { ctx ->
-                            WebView(ctx).apply {
-                                settings.javaScriptEnabled = true
-                                settings.domStorageEnabled = true
-                                setBackgroundColor(android.graphics.Color.rgb(26, 26, 26))
-                                webViewClient = WebViewClient()
-                                addJavascriptInterface(
-                                    MapBridge(
-                                        onState = { selectedState = it },
-                                        onEvent = { id -> currentByMonth.firstOrNull { it.id.equals(id, true) }?.let(onEventClick) }
-                                    ), "Android"
-                                )
-                                val template = ctx.assets.open("us_map.html").bufferedReader().use { it.readText() }
-                                val html = template.replaceFirst("<body>", "<body><script>window.__initialPins=$pinsJson;</script>")
-                                loadDataWithBaseURL("https://unpkg.com", html, "text/html", "utf-8", null)
-                                webView = this
-                            }
-                        }
+                    UsMapCanvas(
+                        pins = byMonth,
+                        selectedState = selectedState,
+                        onStateTap = { selectedState = it },
+                        onEventTap = onEventClick,
+                        modifier = Modifier.fillMaxWidth().height(if (selectedState != null) 280.dp else 380.dp)
                     )
                     val st = selectedState
                     if (st != null) {
@@ -302,7 +267,6 @@ fun NationalRunCalendarScreen(onBack: () -> Unit, onEventClick: (SupabaseEvent) 
             }
         }
     }
-    DisposableEffect(Unit) { onDispose { webView?.destroy(); webView = null } }
 }
 
 @Composable

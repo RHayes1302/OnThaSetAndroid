@@ -171,19 +171,23 @@ object AuthService {
         }
     }
 
-    // ── Sign in with Apple (via Supabase OAuth in the browser) ───────────────
+    // ── Sign in with Google (via Supabase OAuth in the browser) ──────────────
 
     const val OAUTH_REDIRECT = "onthaset://auth-callback"
 
-    /** URL that starts Apple sign-in through Supabase; it redirects back to [OAUTH_REDIRECT]. */
+    /** URL that starts Google sign-in through Supabase; it redirects back to [OAUTH_REDIRECT]. */
+    fun googleSignInUrl(): String =
+        "${SupabaseConfig.PROJECT_URL}/auth/v1/authorize?provider=google&redirect_to=${Http.enc(OAUTH_REDIRECT)}"
+
+    /** Kept for reference: Apple sign-in through Supabase (not shown on Android). */
     fun appleSignInUrl(): String =
         "${SupabaseConfig.PROJECT_URL}/auth/v1/authorize?provider=apple&redirect_to=${Http.enc(OAUTH_REDIRECT)}&scopes=${Http.enc("name email")}"
 
     /**
      * Handles onthaset://auth-callback#access_token=…  (or ?error_description=…).
-     * The account id used everywhere is Apple's stable user id (the token `sub`), which is exactly
-     * what the iOS app stores as `apple_user_id` — so the same Apple account maps to the same
-     * profile, events, photos and builds on both platforms.
+     * Google: the account id is the Supabase user id (uppercase UUID, same format as email users).
+     * Supabase links a Google login to an existing email account with the same verified email,
+     * so those users keep their profile. Apple (if ever used): the Apple `sub`, matching iOS.
      */
     suspend fun completeOAuth(callback: android.net.Uri): Boolean {
         _isLoading.value = true; _authError.value = null
@@ -203,14 +207,13 @@ object AuthService {
             var name = ""
             if (identities != null) for (i in 0 until identities.length()) {
                 val idn = identities.optJSONObject(i) ?: continue
+                val data = idn.optJSONObject("identity_data")
                 if (idn.optString("provider") == "apple") {
-                    val data = idn.optJSONObject("identity_data")
                     appleSub = data?.optStringOrNull("sub") ?: idn.optStringOrNull("id")
-                    name = data?.optStringOrNull("full_name") ?: data?.optStringOrNull("name") ?: ""
                 }
+                if (name.isEmpty()) name = data?.optStringOrNull("full_name") ?: data?.optStringOrNull("name") ?: ""
             }
             val meta = user.optJSONObject("user_metadata")
-            if (appleSub == null) appleSub = meta?.optStringOrNull("sub") ?: meta?.optStringOrNull("provider_id")
             if (name.isEmpty()) name = meta?.optStringOrNull("full_name") ?: meta?.optStringOrNull("name") ?: ""
             val userID = appleSub ?: user.optString("id").uppercase()
             val email = user.optStringOrNull("email") ?: meta?.optStringOrNull("email") ?: "no-email@placeholder.com"
@@ -226,11 +229,11 @@ object AuthService {
             }
             LocalStore.upsertProfile(profile)
             setUser(userID, email)
-            Http.log("✅ Apple sign in complete — $userID")
+            Http.log("✅ OAuth sign in complete — $userID")
             return true
         } catch (e: Exception) {
             _authError.value = e.message
-            Http.log("❌ Apple sign in error: $e")
+            Http.log("❌ OAuth sign in error: $e")
             return false
         } finally {
             _isLoading.value = false

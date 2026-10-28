@@ -220,14 +220,14 @@ fun GateScreen() {
 
             Column(Modifier.padding(horizontal = 40.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(20.dp)) {
                 if (isLoading) CircularProgressIndicator(color = AppColors.Yellow)
-                // SIGN IN WITH APPLE — same account as the iOS app
+                // SIGN IN WITH GOOGLE (Android). iOS keeps Sign in with Apple.
                 Text(
-                    "Sign in with Apple", color = Color.Black, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center,
+                    "Sign in with Google", color = Color.Black, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(Color.White)
                         .clickable(enabled = !isLoading) {
                             AuthService.setAuthError(null)
                             androidx.browser.customtabs.CustomTabsIntent.Builder().build()
-                                .launchUrl(context, android.net.Uri.parse(AuthService.appleSignInUrl()))
+                                .launchUrl(context, android.net.Uri.parse(AuthService.googleSignInUrl()))
                         }
                         .padding(vertical = 15.dp)
                 )
