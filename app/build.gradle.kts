@@ -83,5 +83,6 @@ dependencies {
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.play.services.location)
     implementation(libs.billing.ktx)
+    implementation("androidx.fragment:fragment-ktx:1.8.5")
     debugImplementation(libs.androidx.ui.tooling)
 }
